@@ -8,7 +8,7 @@ from struct import pack
 import s_functions as sf
 import s_variables as sv
 import numpy as np
-import  pickle
+import	pickle
 import gi
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk as gtk
@@ -28,7 +28,8 @@ def soundscape(input_args, x_out=None, y_out=None, sound_map=None, stipple=None,
 
 	#setup sound dict if not already setup
 	filepath = os.path.join(sv.sound_dict_loc, sv.sound_dict_name)
-	if not os.access(filepath, 0) and volume == None:
+#	 if not os.access(filepath, 0) and volume == None:
+	if True:
 		sf.make_sound_dict(sv.default_volume)
 	if volume != None:
 		volume = min(max(0.0, volume), 1.0)
@@ -59,7 +60,7 @@ def soundscape(input_args, x_out=None, y_out=None, sound_map=None, stipple=None,
 		y_map[0].reverse()
 		y_map[1].reverse()
 	else:
-		y_map.reverse()				#changes array layout to cartesian layout
+		y_map.reverse()				       #changes array layout to cartesian layout
 	if y_out is None:
 		raise StandardError("invalid y out value")
 	array_data['y_out'] = y_out

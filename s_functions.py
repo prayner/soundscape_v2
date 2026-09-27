@@ -7,7 +7,7 @@ from alsaaudio import *
 from struct import pack
 import s_variables as sv
 import numpy as np
-import pickle
+import pickle,sys
 import gi
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk as gtk
@@ -16,7 +16,7 @@ from gi.repository import Gdk as gdk
 import os, threading
 
 #-------------------------------------------------------------------------------------------------
-#                                      FUNCTIONS FOR INPUT
+#				       FUNCTIONS FOR INPUT
 #-------------------------------------------------------------------------------------------------
 def clean_sound_map(sound_map):
 	if not isinstance( sound_map, (list, tuple, np.ndarray)):
@@ -106,7 +106,7 @@ def make_xy_map(spacing, screen_dim):
 	size = (spacing[-1] - spacing[0])
 	spacing_percent = [(i-spacing[0])/float(size) for i in spacing[1:]]
 	xy_map = [np.searchsorted(spacing_percent,float(i)/screen_dim) \
-	          for i in range(screen_dim)]
+		  for i in range(screen_dim)]
 	return xy_map
 
 def clean_stipple(array_data, stipple):
@@ -194,7 +194,7 @@ def convert_array(data):
 	return array
 
 #-------------------------------------------------------------------------------------------------
-#                                    FUNCTIONS FOR ALSAAUDIO
+#				     FUNCTIONS FOR ALSAAUDIO
 #-------------------------------------------------------------------------------------------------
 class audio_thread(threading.Thread):
 	def __init__(self, queue):
@@ -207,26 +207,28 @@ class audio_thread(threading.Thread):
 		self.sounds = pickle.load(file)
 		file.close()
 
-		self.out = PCM(type=PCM_PLAYBACK, mode=PCM_NORMAL, device='default')
-		self.out.setformat(PCM_FORMAT_S32_LE)
+		self.out = PCM(type=PCM_PLAYBACK, mode=PCM_NORMAL)
+		self.out.setformat(PCM_FORMAT_S16_LE)
 		return None
 
 	def run(self):
 		s = list(zip(self.sounds['0'],self.sounds[str(sv.num_of_sounds)]))
 		s = [int(item) for sublist in s for item in sublist]
-		sound = pack('<'+2*sv.period*'l',*s)
+		sound = pack(str(2*sv.period)+'h',*s)
+		# import pickle
+		# pickle.dump((s,sound),open('outfile','wb')); sys.exit()
 		while not self.quit:
 			if not self.queue.empty():
 				keys = self.queue.get()
 				s = list(zip(self.sounds[keys[0]],self.sounds[keys[1]]))
 				s = [int(item) for sublist in s for item in sublist]
-				sound = pack('<'+2*sv.period*'l',*s)
+				sound = pack(str(2*sv.period)+'h',*s)
 			self.out.write(sound)
 		self.out.close()
 		return None
 
 #-------------------------------------------------------------------------------------------------
-#                                      FUNCTIONS FOR PYGTK
+#				       FUNCTIONS FOR PYGTK
 #-------------------------------------------------------------------------------------------------
 def key_press_callback(window, event, array_data):
 	if event.keyval == gdk.KEY_minus:
@@ -250,14 +252,14 @@ def key_press_callback(window, event, array_data):
 		y_pos = max(y_pos, 1)
 		y_pos = min(y_pos, height)
 
-		x_map =  array_data['x_map']
-		y_map =  array_data['y_map']
+		x_map =	 array_data['x_map']
+		y_map =	 array_data['y_map']
 		if array_data['multiple_arrays']:
 			y_map[0].reverse()
 			y_map[1].reverse()
 		else:
-			y_map.reverse()				#changes cartesian layout to array layout
-		y_pos = height - y_pos				#When changing co-ord layout, pointer also moves
+			y_map.reverse()				       #changes cartesian layout to array layout
+		y_pos = height - y_pos				      #When changing co-ord layout, pointer also moves
 
 		x_min = int(x_pos * sv.zoom_fac)
 		x_max = int(x_pos + ((width - x_pos) * sv.zoom_fac) )
@@ -301,7 +303,7 @@ def key_press_callback(window, event, array_data):
 			y_map[0].reverse()
 			y_map[1].reverse()
 		else:
-			y_map.reverse()				#changes array layout to cartesian layout
+			y_map.reverse()				       #changes array layout to cartesian layout
 		array_data['x_map'] = x_map
 		array_data['y_map'] = y_map
 
@@ -316,10 +318,10 @@ def key_press_callback(window, event, array_data):
 
 			x_out_0 = str(array_data['x_out'][0][x0]) + ' , '
 			y_out_0 = str(array_data['y_out'][0][y0]) + ' : '
-			val_0   = str(array_data['values'][0][y0,x0]) + ' ; '
+			val_0	= str(array_data['values'][0][y0,x0]) + ' ; '
 			x_out_1 = str(array_data['x_out'][1][x1]) + ' , '
 			y_out_1 = str(array_data['y_out'][1][y1]) + ' : '
-			val_1   = str(array_data['values'][1][y1,x1])
+			val_1	= str(array_data['values'][1][y1,x1])
 			
 			if len(array_data['x_out'][0]) == 1:
 				x_out_0 = ''
@@ -337,7 +339,7 @@ def key_press_callback(window, event, array_data):
 					x_out_1 = ''
 					y_out_1 = ''
 
-			print(  x_out_0 + y_out_0 + val_0 + x_out_1 + y_out_1 + val_1)
+			print(	x_out_0 + y_out_0 + val_0 + x_out_1 + y_out_1 + val_1)
 		else:
 			x = array_data['x_map'][x_pos]
 			y = array_data['y_map'][y_pos]
@@ -402,16 +404,16 @@ def mouse_move_callback(window, event, array_data):
 	return None
 
 #-------------------------------------------------------------------------------------------------
-#                                   FUNCTIONS FOR SOUND WAVE DICT
+#				    FUNCTIONS FOR SOUND WAVE DICT
 #-------------------------------------------------------------------------------------------------
 def make_wave(freq, volume=None):
 	if volume == None:
 		amp = 1.0
 	else:
-		max_amp = (pow(2,31)-1) * np.exp((sv.min_freq / freq) - 1)
+		max_amp = (pow(2,14)-1) * np.exp((sv.min_freq / freq) - 1)
 		amp = max_amp * volume
 	wave = [amp * np.sin((2*np.pi*float(i)*freq) / sv.rate) for i in range(sv.period)]
-	return np.array(wave)
+	return np.array(wave).astype('float32')
 
 def make_sound_dict(volume):
 
@@ -434,7 +436,7 @@ def make_sound_dict(volume):
 	return None
 
 #-------------------------------------------------------------------------------------------------
-#                                    FUNCTIONS FOR DEBUGGING
+#				     FUNCTIONS FOR DEBUGGING
 #-------------------------------------------------------------------------------------------------
 def debug_printing(array_data):
 	#print array_data.keys()
