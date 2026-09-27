@@ -8,7 +8,7 @@ from struct import pack
 import s_functions as sf
 import s_variables as sv
 import numpy as np
-import	pickle
+import  pickle
 import gi
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk as gtk
@@ -21,92 +21,92 @@ import threading, queue
 #gtk.gdk.threads_init()
 
 def soundscape(input_args, x_out=None, y_out=None, sound_map=None, stipple=None, volume=None):
-	#clean input
-	array_data = sf.clean_input(input_args)
-	if array_data == None:
-		raise StandardError("input_args incorrect")
+    #clean input
+    array_data = sf.clean_input(input_args)
+    if array_data == None:
+        raise StandardError("input_args incorrect")
 
-	#setup sound dict if not already setup
-	filepath = os.path.join(sv.sound_dict_loc, sv.sound_dict_name)
-#	 if not os.access(filepath, 0) and volume == None:
-	if True:
-		sf.make_sound_dict(sv.default_volume)
-	if volume != None:
-		volume = min(max(0.0, volume), 1.0)
-		sf.make_sound_dict(volume)
+    #setup sound dict if not already setup
+    filepath = os.path.join(sv.sound_dict_loc, sv.sound_dict_name)
+#    if not os.access(filepath, 0) and volume == None:
+    if True:
+        sf.make_sound_dict(sv.default_volume)
+    if volume != None:
+        volume = min(max(0.0, volume), 1.0)
+        sf.make_sound_dict(volume)
 
-	#setup user interface
-	main_window = gtk.Window()
-	main_window.add_events(gdk.EventMask.POINTER_MOTION_MASK)
-	main_window.set_title("soundscape")
-	main_window.fullscreen()
-	screen_width  = gdk.Screen.width()
-	screen_height = gdk.Screen.height()
+    #setup user interface
+    main_window = gtk.Window()
+    main_window.add_events(gdk.EventMask.POINTER_MOTION_MASK)
+    main_window.set_title("soundscape")
+    main_window.fullscreen()
+    screen_width  = gdk.Screen.width()
+    screen_height = gdk.Screen.height()
 
-	#setup optional args
-	stipple = sf.clean_stipple(array_data, stipple)
-	if stipple is None:
-		raise StandardError("invalid stipple value")
-	array_data['stipple'] = stipple
+    #setup optional args
+    stipple = sf.clean_stipple(array_data, stipple)
+    if stipple is None:
+        raise StandardError("invalid stipple value")
+    array_data['stipple'] = stipple
 
-	x_out, x_map = sf.clean_coord_map(array_data, x_out, 'x', screen_width)
-	if x_out is None:
-		raise StandardError("invalid x out value")
-	array_data['x_out'] = x_out
-	array_data['x_map'] = x_map
+    x_out, x_map = sf.clean_coord_map(array_data, x_out, 'x', screen_width)
+    if x_out is None:
+        raise StandardError("invalid x out value")
+    array_data['x_out'] = x_out
+    array_data['x_map'] = x_map
 
-	y_out, y_map = sf.clean_coord_map(array_data, y_out, 'y', screen_height)
-	if array_data['multiple_arrays']:
-		y_map[0].reverse()
-		y_map[1].reverse()
-	else:
-		y_map.reverse()				       #changes array layout to cartesian layout
-	if y_out is None:
-		raise StandardError("invalid y out value")
-	array_data['y_out'] = y_out
-	array_data['y_map'] = y_map
+    y_out, y_map = sf.clean_coord_map(array_data, y_out, 'y', screen_height)
+    if array_data['multiple_arrays']:
+        y_map[0].reverse()
+        y_map[1].reverse()
+    else:
+        y_map.reverse()                    #changes array layout to cartesian layout
+    if y_out is None:
+        raise StandardError("invalid y out value")
+    array_data['y_out'] = y_out
+    array_data['y_map'] = y_map
 
-	if array_data['multiple_arrays']:
-		array_data['original_x_map'] = [ [x0 for x0 in x_map[0]], [x1 for x1 in x_map[1]] ]
-		array_data['original_y_map'] = [ [y0 for y0 in y_map[0]], [y1 for y1 in y_map[1]] ]
-	else:
-		array_data['original_x_map'] = [x for x in x_map]
-		array_data['original_y_map'] = [y for y in y_map]
+    if array_data['multiple_arrays']:
+        array_data['original_x_map'] = [ [x0 for x0 in x_map[0]], [x1 for x1 in x_map[1]] ]
+        array_data['original_y_map'] = [ [y0 for y0 in y_map[0]], [y1 for y1 in y_map[1]] ]
+    else:
+        array_data['original_x_map'] = [x for x in x_map]
+        array_data['original_y_map'] = [y for y in y_map]
 
-	if sound_map is None:
-		if array_data['multiple_arrays']:
-			top = max(array_data['max'])
-			bot = min(array_data['min'])
-		else:
-			top = array_data['max']
-			bot = array_data['min']
-		a = np.linspace(bot, top, num=(sv.num_of_sounds+1), endpoint=False)
-		sound_map = a[1:]
-	else:
-		sound_map = sf.clean_sound_map(sound_map)
-		if sound_map is None:
-			raise StandardError("invalid sound map value")
-	array_data['sound_map'] = sound_map
+    if sound_map is None:
+        if array_data['multiple_arrays']:
+            top = max(array_data['max'])
+            bot = min(array_data['min'])
+        else:
+            top = array_data['max']
+            bot = array_data['min']
+        a = np.linspace(bot, top, num=(sv.num_of_sounds+1), endpoint=False)
+        sound_map = a[1:]
+    else:
+        sound_map = sf.clean_sound_map(sound_map)
+        if sound_map is None:
+            raise StandardError("invalid sound map value")
+    array_data['sound_map'] = sound_map
 
-	array_data['queue'] = queue.Queue()
+    array_data['queue'] = queue.Queue()
 
-	#DEBUG PRINTING
-	#sf.debug_printing(array_data, screen_width, screen_height)
+    #DEBUG PRINTING
+    #sf.debug_printing(array_data, screen_width, screen_height)
 
-	
-	#connect user input
-	main_window.connect("delete-event", gtk.main_quit)
-	main_window.connect("key-press-event", sf.key_press_callback, array_data)
-	main_window.connect("motion-notify-event", sf.mouse_move_callback, array_data)
-	main_window.show_all()
+    
+    #connect user input
+    main_window.connect("delete-event", gtk.main_quit)
+    main_window.connect("key-press-event", sf.key_press_callback, array_data)
+    main_window.connect("motion-notify-event", sf.mouse_move_callback, array_data)
+    main_window.show_all()
 
-	#run sound and screen
-	t = sf.audio_thread(array_data['queue'])
-	t.start()
-	gtk.main()
+    #run sound and screen
+    t = sf.audio_thread(array_data['queue'])
+    t.start()
+    gtk.main()
 
-	#close program when gtk.main quits
-	t.quit = True
-	main_window.destroy()
-	return None
-	
+    #close program when gtk.main quits
+    t.quit = True
+    main_window.destroy()
+    return None
+    
