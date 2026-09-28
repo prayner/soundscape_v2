@@ -207,8 +207,12 @@ class audio_thread(threading.Thread):
         self.sounds = pickle.load(file)
         file.close()
 
-        self.out = PCM(type=PCM_PLAYBACK, mode=PCM_NORMAL)
-        self.out.setformat(PCM_FORMAT_S16_LE)
+        #configure the device in the constructor: the set* methods are
+        #deprecated, and without an explicit period size ALSA picks a tiny
+        #default (32 frames) that does not match the chunks run() writes
+        self.out = PCM(type=PCM_PLAYBACK, mode=PCM_NORMAL,
+                       format=PCM_FORMAT_S16_LE, channels=2,
+                       rate=sv.rate, periodsize=sv.period)
         return None
 
     def run(self):
