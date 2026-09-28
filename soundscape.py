@@ -37,7 +37,11 @@ def soundscape(input_args, x_out=None, y_out=None, sound_map=None, stipple=None,
 
     #setup user interface
     main_window = gtk.Window()
-    main_window.add_events(gdk.EventMask.POINTER_MOTION_MASK)
+    main_window.add_events(gdk.EventMask.POINTER_MOTION_MASK |
+                           gdk.EventMask.BUTTON_PRESS_MASK |
+                           gdk.EventMask.BUTTON_RELEASE_MASK |
+                           gdk.EventMask.BUTTON1_MOTION_MASK |
+                           gdk.EventMask.TOUCH_MASK)
     main_window.set_title("soundscape")
     main_window.fullscreen()
     screen_width  = gdk.Screen.width()
@@ -98,6 +102,8 @@ def soundscape(input_args, x_out=None, y_out=None, sound_map=None, stipple=None,
     main_window.connect("delete-event", gtk.main_quit)
     main_window.connect("key-press-event", sf.key_press_callback, array_data)
     main_window.connect("motion-notify-event", sf.mouse_move_callback, array_data)
+    main_window.connect("touch-event", sf.touch_callback, array_data)
+    main_window.connect("map-event", sf.grab_pointing)
     main_window.show_all()
 
     #run sound and screen
@@ -106,6 +112,7 @@ def soundscape(input_args, x_out=None, y_out=None, sound_map=None, stipple=None,
     gtk.main()
 
     #close program when gtk.main quits
+    sf.release_pointing()
     t.quit = True
     main_window.destroy()
     return None

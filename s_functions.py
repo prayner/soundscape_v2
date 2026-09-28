@@ -244,13 +244,13 @@ def key_press_callback(window, event, array_data):
 
     if event.keyval == gdk.KEY_equal:
         #zoom in
-        x_pos, y_pos = window.get_pointer()
+        x_pos, y_pos = get_pointer_pos(window, array_data)
         width  = gdk.Screen.width()
         height = gdk.Screen.height()
         x_pos = max(x_pos, 1)
-        x_pos = min(x_pos, width)
+        x_pos = min(x_pos, width - 1)
         y_pos = max(y_pos, 1)
-        y_pos = min(y_pos, height)
+        y_pos = min(y_pos, height - 1)
 
         x_map =  array_data['x_map']
         y_map =  array_data['y_map']
@@ -262,9 +262,9 @@ def key_press_callback(window, event, array_data):
         y_pos = height - y_pos                    #When changing co-ord layout, pointer also moves
 
         x_min = int(x_pos * sv.zoom_fac)
-        x_max = int(x_pos + ((width - x_pos) * sv.zoom_fac) )
+        x_max = min(int(x_pos + ((width - x_pos) * sv.zoom_fac) ), width - 1)
         y_min = int(y_pos * sv.zoom_fac)
-        y_max = int(y_pos + ((height - y_pos) * sv.zoom_fac) )
+        y_max = min(int(y_pos + ((height - y_pos) * sv.zoom_fac) ), height - 1)
 
         if array_data['multiple_arrays']:
             x0_min = x_map[0][x_min]
@@ -309,7 +309,7 @@ def key_press_callback(window, event, array_data):
 
     if event.keyval == gdk.KEY_space:
         #data print out
-        x_pos, y_pos = window.get_pointer()
+        x_pos, y_pos = get_pointer_pos(window, array_data)
         if array_data['multiple_arrays']:
             x0 = array_data['x_map'][0][x_pos]
             y0 = array_data['y_map'][0][y_pos]
@@ -339,7 +339,8 @@ def key_press_callback(window, event, array_data):
                     x_out_1 = ''
                     y_out_1 = ''
 
-            print(  x_out_0 + y_out_0 + val_0 + x_out_1 + y_out_1 + val_1)
+            print(  x_out_0 + y_out_0 + val_0 + x_out_1 + y_out_1 + val_1,
+                  flush=True)
         else:
             x = array_data['x_map'][x_pos]
             y = array_data['y_map'][y_pos]
@@ -354,7 +355,7 @@ def key_press_callback(window, event, array_data):
                 x_out = x_out.replace(',',':')
                 y_out = ''
 
-            print( x_out + y_out + val)
+            print( x_out + y_out + val, flush=True)
 
     if event.keyval== gdk.KEY_Return:
         window.destroy()
@@ -364,14 +365,88 @@ def key_press_callback(window, event, array_data):
         gtk.main_quit()
     return None
 
+def grab_pointing(window, event):
+    """Take an active grab on every pointing device, once the window is mapped.
+
+    Mutter keeps a passive touch grab on the root window so it can look for
+    gestures.  When it takes ownership of a touch sequence the application
+    stops receiving that sequence -- which is why the first drag of a run gets
+    through and later ones do not.  A passive grab cannot activate while
+    another client holds an active grab, so taking one here keeps the whole
+    drag.  Only pointing devices are grabbed: the keyboard stays free, so
+    escape and return still quit.
+    """
+    seat = gdk.Display.get_default().get_default_seat()
+    status = seat.grab(window.get_window(), gdk.SeatCapabilities.ALL_POINTING,
+                       False, None, None, None, None)
+    if status != gdk.GrabStatus.SUCCESS:
+        sys.stderr.write('soundscape: could not grab pointing devices (%s); '
+                         'touch drags may still be claimed by the desktop\n'
+                         % status.value_nick)
+    return False                       #let other handlers see the map event
+
+def release_pointing():
+    gdk.Display.get_default().get_default_seat().ungrab()
+    return None
+
+def get_event_pos(window, event, array_data):
+    #pull the position out of the event itself.  works for motion-notify
+    #events (mouse, tablet stylus) and for touch events (finger), where the
+    #core pointer is not necessarily moved at all.
+    #
+    #get_coords() has two shapes here.  pygobject strips the gboolean return
+    #from the concrete event classes (EventMotion, EventTouch...) and hands
+    #back (x, y), or None on failure.  the plain GdkEvent union keeps it and
+    #returns (ok, x, y).  which one a handler sees depends on how the signal
+    #is typed: motion-notify-event carries a GdkEventMotion, touch-event
+    #carries a bare GdkEvent.  accept both.
+    coords = event.get_coords()
+    if coords is None:
+        return None
+    if len(coords) == 3 and not coords[0]:
+        return None
+    x_pos, y_pos = coords[-2], coords[-1]
+    return clamp_pos(array_data, int(x_pos), int(y_pos))
+
+def clamp_pos(array_data, x_pos, y_pos):
+    if array_data['multiple_arrays']:
+        x_len = len(array_data['x_map'][0])
+        y_len = len(array_data['y_map'][0])
+    else:
+        x_len = len(array_data['x_map'])
+        y_len = len(array_data['y_map'])
+    x_pos = min(max(x_pos, 0), x_len - 1)
+    y_pos = min(max(y_pos, 0), y_len - 1)
+    return x_pos, y_pos
+
+def get_pointer_pos(window, array_data):
+    #last position seen by the motion/touch handlers.  a finger on a
+    #touchscreen does not move the core pointer, so window.get_pointer() is
+    #only a fallback for when nothing has been tracked yet.
+    pos = array_data.get('last_pos')
+    if pos is None:
+        pos = window.get_pointer()
+    return clamp_pos(array_data, int(pos[0]), int(pos[1]))
+
 def mouse_move_callback(window, event, array_data):
-    x_pos, y_pos = window.get_pointer()
-    width  = gdk.Screen.width()
-    height = gdk.Screen.height()
-    x_pos = max(x_pos, 0)
-    x_pos = min(x_pos, width)
-    y_pos = max(y_pos, 0)
-    y_pos = min(y_pos, height)
+    pos = get_event_pos(window, event, array_data)
+    if pos is not None:
+        play_position(array_data, pos[0], pos[1])
+    return False
+
+def touch_callback(window, event, array_data):
+    #a touchscreen drag arrives as touch-begin/touch-update, not as
+    #motion-notify: gtk selects touch events on its toplevel, which stops the
+    #x server emulating pointer motion for the touch sequence.
+    if event.type not in (gdk.EventType.TOUCH_BEGIN, gdk.EventType.TOUCH_UPDATE):
+        return False
+    pos = get_event_pos(window, event, array_data)
+    if pos is not None:
+        play_position(array_data, pos[0], pos[1])
+    return False
+
+def play_position(array_data, x_pos, y_pos):
+    array_data['last_pos'] = (x_pos, y_pos)
 
     if array_data['multiple_arrays']:
         x = array_data['x_map'][0][x_pos]
@@ -388,9 +463,7 @@ def mouse_move_callback(window, event, array_data):
         if array_data['stipple'][1][y,x]:
             index2 = 's' + index2
 
-        key = [index1, index2]
-        if array_data['queue'].empty():
-            array_data['queue'].put(key)
+        queue_sound(array_data, [index1, index2])
     else:
         x = array_data['x_map'][x_pos]
         y = array_data['y_map'][y_pos]
@@ -398,9 +471,12 @@ def mouse_move_callback(window, event, array_data):
         index = str(np.searchsorted(array_data['sound_map'], value))
         if array_data['stipple'][y,x]:
             index = 's' + index
-        key = [index, index]
-        if array_data['queue'].empty():
-            array_data['queue'].put(key)
+        queue_sound(array_data, [index, index])
+    return None
+
+def queue_sound(array_data, key):
+    if array_data['queue'].empty():
+        array_data['queue'].put(key)
     return None
 
 #-------------------------------------------------------------------------------------------------
