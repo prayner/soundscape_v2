@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "soundscape"
+version = "0.1.0"
+description = "Audiolisation of 2D arrays by tracking a tablet or touchscreen pointer"
+authors = [{ name = "Steven Thomas" }]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "pyalsaaudio",
+    "PyGObject",
+]
+
+[tool.setuptools]
+py-modules = ["soundscape", "s_functions", "s_variables"]
